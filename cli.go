@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	parser = flags.NewNamedParser("srclib-go", flags.Default)
+	parser = flags.NewNamedParser("srclib-go", flags.Default | flags.IgnoreUnknown)
 	cwd    = getCWD()
 )
 
