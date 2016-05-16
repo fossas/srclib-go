@@ -237,7 +237,7 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 	// TODO(sqs): include xtest, but we'll have to make them have a distinctly
 	// namespaced def path from the non-xtest pkg.
 
-	pkgs, err := scanForPackages(scanDir)
+	pkgs, err := scanForPackages(scanDir, scanDir)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 	return units, nil
 }
 
-func scanForPackages(dir string) ([]*build.Package, error) {
+func scanForPackages(srcdir string, dir string) ([]*build.Package, error) {
 	var pkgs []*build.Package
 
 	pkg, err := buildContext.ImportDir(dir, 0)
@@ -319,6 +319,8 @@ func scanForPackages(dir string) ([]*build.Package, error) {
 		}
 	}
 	if err == nil {
+		reldir, _ := filepath.Rel(srcdir, dir)
+		pkg.ImportPath = reldir
 		pkgs = append(pkgs, pkg)
 	}
 
@@ -330,7 +332,7 @@ func scanForPackages(dir string) ([]*build.Package, error) {
 		name := info.Name()
 		fullPath := filepath.Join(dir, name)
 		if info.IsDir() && ((name[0] != '.' && name[0] != '_' && name != "testdata") || (strings.HasSuffix(filepath.ToSlash(fullPath), "/Godeps/_workspace") && !config.SkipGodeps)) {
-			subPkgs, err := scanForPackages(fullPath)
+			subPkgs, err := scanForPackages(srcdir, fullPath)
 			if err != nil {
 				return nil, err
 			}
