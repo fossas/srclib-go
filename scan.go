@@ -312,8 +312,19 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 	assignGodepsCommits(scanDir, units)
 	assignGovendorCommits(scanDir, units)
 	assignRevisionsToDependencies(units)
+	units = filterVendorizedDependencies(units)
 
 	return units, nil
+}
+
+func filterVendorizedDependencies(units []*unit.SourceUnit) ([]*unit.SourceUnit) {
+	newUnits := make([]*unit.SourceUnit, 0)
+	for _, unit := range units {
+		if _, isVendored := vendoredUnitName(unit.Data.(*build.Package)); !isVendored {
+			newUnits = append(newUnits, unit)
+		}
+	}
+	return newUnits
 }
 
 func assignGitCommits(dir string, units []*unit.SourceUnit) {
@@ -327,7 +338,7 @@ func assignGitCommits(dir string, units []*unit.SourceUnit) {
 
 	var buf bytes.Buffer
 	for _, unit := range units {
-		if strings.Index(unit.Dir, "vendor") != 0 {
+		if _, isVendored := vendoredUnitName(unit.Data.(*build.Package)); !isVendored {
 			fullpath := filepath.Join(dir, unit.Dir)
 			args := []string{"log", "-1", "--format='%H'"}
 			cmd := exec.Command("git", args...)
@@ -363,9 +374,9 @@ func assignGodepsCommits(dir string, units []*unit.SourceUnit) {
 	}
 
 	for _, unit := range units {
-		name := unit.Name
-		if name_index := strings.Index(unit.Name, "vendor/"); name_index != -1 {
-			name = strings.SplitN(name, "vendor/", 2)[1]
+		name, isVendored := vendoredUnitName(unit.Data.(*build.Package))
+		if !isVendored {
+			name = unit.Name
 		}
 		if rev, ok := lookup[name]; ok {
 			unit.CommitID = rev
@@ -388,9 +399,9 @@ func assignGovendorCommits(dir string, units []*unit.SourceUnit) {
 	}
 
 	for _, unit := range units {
-		name := unit.Name
-		if name_index := strings.Index(unit.Name, "vendor/"); name_index != -1 {
-			name = strings.SplitN(name, "vendor/", 2)[1]
+		name, isVendored := vendoredUnitName(unit.Data.(*build.Package))
+		if !isVendored {
+			name = unit.Name
 		}
 		if rev, ok := lookup[name]; ok {
 			unit.CommitID = rev
@@ -402,9 +413,9 @@ func assignRevisionsToDependencies(units []*unit.SourceUnit) {
 	lookup := make(map[string]string)
 
 	for _, unit := range units {
-		name := unit.Name
-		if name_index := strings.Index(unit.Name, "vendor/"); name_index != -1 {
-			name = strings.SplitN(name, "vendor/", 2)[1]
+		name, isVendored := vendoredUnitName(unit.Data.(*build.Package))
+		if !isVendored {
+			name = unit.Name
 		}
 		lookup[name] = unit.CommitID
 	}
