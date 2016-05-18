@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"go/build"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -13,6 +16,7 @@ import (
 
 	"sourcegraph.com/sourcegraph/srclib"
 	"sourcegraph.com/sourcegraph/srclib/unit"
+	"sourcegraph.com/sourcegraph/srclib-go/gog"
 )
 
 func init() {
@@ -304,7 +308,116 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 		})
 	}
 
+	assignGitCommits(scanDir, units)
+	assignGodepsCommits(scanDir, units)
+	assignGovendorCommits(scanDir, units)
+	assignRevisionsToDependencies(units)
+
 	return units, nil
+}
+
+func assignGitCommits(dir string, units []*unit.SourceUnit) {
+	_, err := exec.LookPath("git")
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"go: missing %s command. See https://golang.org/s/gogetcmd\n",
+			"git")
+		return
+	}
+
+	var buf bytes.Buffer
+	for _, unit := range units {
+		if strings.Index(unit.Dir, "vendor") != 0 {
+			fullpath := filepath.Join(dir, unit.Dir)
+			args := []string{"log", "-1", "--format='%H'"}
+			cmd := exec.Command("git", args...)
+			cmd.Dir = fullpath
+			cmd.Stdout = &buf
+
+			err = cmd.Run()
+			out := bytes.Trim(buf.Bytes(), "'\n")
+			if err != nil {
+				log.Printf("# cd %s; %s %s\n", cmd.Dir, "git", strings.Join(args, " "))
+				os.Stderr.Write(out)
+			} else {
+				unit.CommitID = string(out)
+			}
+			buf.Reset()
+		}
+	}
+}
+
+func assignGodepsCommits(dir string, units []*unit.SourceUnit) {
+	fullpath := filepath.Join(dir, "Godeps", "Godeps.json")
+	lookup := make(map[string]string)
+	deps, err := gog.LoadGodepsFile(fullpath)
+
+	if err != nil {
+		log.Println("No Godeps file found.")
+		return
+	}
+
+	for _, dep := range deps.Deps {
+		// @TODO(Abe): Lookup comment for tag
+		lookup[dep.ImportPath] = dep.Rev
+	}
+
+	for _, unit := range units {
+		name := unit.Name
+		if name_index := strings.Index(unit.Name, "vendor/"); name_index != -1 {
+			name = strings.SplitN(name, "vendor/", 2)[1]
+		}
+		if rev, ok := lookup[name]; ok {
+			unit.CommitID = rev
+		}
+	}
+}
+
+func assignGovendorCommits(dir string, units []*unit.SourceUnit) {
+	fullpath := filepath.Join(dir, "vendor", "vendor.json")
+	lookup := make(map[string]string)
+	deps, err := gog.LoadGovendorFile(fullpath)
+
+	if err != nil {
+		log.Println("No govendor file found.")
+		return
+	}
+
+	for _, dep := range deps.Package {
+		lookup[dep.Path] = dep.Revision
+	}
+
+	for _, unit := range units {
+		name := unit.Name
+		if name_index := strings.Index(unit.Name, "vendor/"); name_index != -1 {
+			name = strings.SplitN(name, "vendor/", 2)[1]
+		}
+		if rev, ok := lookup[name]; ok {
+			unit.CommitID = rev
+		}
+	}
+}
+
+func assignRevisionsToDependencies(units []*unit.SourceUnit) {
+	lookup := make(map[string]string)
+
+	for _, unit := range units {
+		name := unit.Name
+		if name_index := strings.Index(unit.Name, "vendor/"); name_index != -1 {
+			name = strings.SplitN(name, "vendor/", 2)[1]
+		}
+		lookup[name] = unit.CommitID
+	}
+
+	for _, unit := range units {
+		for index, dep := range unit.Dependencies {
+			newDep := gog.Dep{Name: fmt.Sprintf("%s", dep)}
+			if commit, ok := lookup[newDep.Name]; ok {
+				newDep.Version = commit
+			}
+			unit.Dependencies[index] = newDep
+		}
+	}
 }
 
 func scanForPackages(srcdir string, dir string) ([]*build.Package, error) {
@@ -317,10 +430,9 @@ func scanForPackages(srcdir string, dir string) ([]*build.Package, error) {
 		} else {
 			log.Printf("Error scanning %s for packages: %v. Ignoring source files in this directory.", dir, err)
 		}
-	}
-	if err == nil {
-		reldir, _ := filepath.Rel(srcdir, dir)
-		pkg.ImportPath = reldir
+	} else {
+		// reldir, _ := filepath.Rel(srcdir, dir)
+		// pkg.ImportPath = reldir
 		pkgs = append(pkgs, pkg)
 	}
 
