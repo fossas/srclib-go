@@ -217,15 +217,36 @@ func findVendor(path string) (index int, ok bool) {
 // string and false.
 func vendoredUnitName(pkg *build.Package) (name string, isVendored bool) {
 	i, ok := findVendor(pkg.Dir)
-	if !ok {
-		return "", false
+	if ok {
+		relDir := pkg.Dir[i+len("vendor"):]
+		if strings.HasPrefix(relDir, "/src/") || !strings.HasPrefix(relDir, "/") {
+			return "", false
+		}
+		relImport := relDir[1:]
+		return relImport, true
+	} else {
+		i, ok := findGoDeps(pkg.Dir)
+		if !ok {
+			return "", false
+		}
+		relDir := pkg.Dir[i+len("Godeps/_workspace/src"):]
+		if strings.HasPrefix(relDir, "/src/") || !strings.HasPrefix(relDir, "/") {
+			return "", false
+		}
+		relImport := relDir[1:]
+		return relImport, true
 	}
-	relDir := pkg.Dir[i+len("vendor"):]
-	if strings.HasPrefix(relDir, "/src/") || !strings.HasPrefix(relDir, "/") {
-		return "", false
+}
+
+// Copied from findVendor
+func findGoDeps(path string) (index int, ok bool) {
+	switch {
+	case strings.Contains(path, "/Godeps/_workspace/src/"):
+		return strings.LastIndex(path, "/Godeps/_workspace/src/") + 1, true
+	case strings.HasPrefix(path, "Godeps/_workspace/src/"):
+		return 0, true
 	}
-	relImport := relDir[1:]
-	return relImport, true
+	return 0, false
 }
 
 func isInGopath(path string) bool {
