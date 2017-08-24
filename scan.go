@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"sourcegraph.com/sourcegraph/srclib"
-	"sourcegraph.com/sourcegraph/srclib/unit"
+	// "sourcegraph.com/sourcegraph/srclib/unit"
 	"sourcegraph.com/sourcegraph/srclib-go/gog"
 )
 
@@ -84,7 +84,7 @@ func (c *ScanCmd) Execute(args []string) error {
 			matchers[i] = matchPattern(pattern)
 		}
 
-		var filteredUnits []*unit.SourceUnit
+		var filteredUnits []*SourceUnit
 		for _, unit := range units {
 			for _, m := range matchers {
 				if m(unit.Name) {
@@ -258,7 +258,7 @@ func isInGopath(path string) bool {
 	return false
 }
 
-func scan(scanDir string) ([]*unit.SourceUnit, error) {
+func scan(scanDir string) ([]*SourceUnit, error) {
 	// TODO(sqs): include xtest, but we'll have to make them have a distinctly
 	// namespaced def path from the non-xtest pkg.
 
@@ -267,7 +267,7 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 		return nil, err
 	}
 
-	var units []*unit.SourceUnit
+	var units []*SourceUnit
 	for _, pkg := range pkgs {
 		// Collect all files
 		var files []string
@@ -318,7 +318,7 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 		pkg.TestImportPos = nil
 		pkg.XTestImportPos = nil
 
-		units = append(units, &unit.SourceUnit{
+		units = append(units, &SourceUnit{
 			Name:         pkg.ImportPath,
 			Type:         "GoPackage",
 			Dir:          pkg.Dir,
@@ -326,6 +326,7 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 			Data:         pkg,
 			Dependencies: deps,
 			Ops:          map[string]*srclib.ToolRef{"depresolve": nil, "graph-all": nil},
+			Paths:				[]string{pkg.Dir},
 		})
 	}
 
@@ -338,8 +339,8 @@ func scan(scanDir string) ([]*unit.SourceUnit, error) {
 	return units, nil
 }
 
-func filterVendorizedDependencies(units []*unit.SourceUnit) ([]*unit.SourceUnit) {
-	newUnits := make([]*unit.SourceUnit, 0)
+func filterVendorizedDependencies(units []*SourceUnit) ([]*SourceUnit) {
+	newUnits := make([]*SourceUnit, 0)
 	for _, unit := range units {
 		if _, isVendored := vendoredUnitName(unit.Data.(*build.Package)); !isVendored {
 			newUnits = append(newUnits, unit)
@@ -348,7 +349,7 @@ func filterVendorizedDependencies(units []*unit.SourceUnit) ([]*unit.SourceUnit)
 	return newUnits
 }
 
-func assignGitCommits(dir string, units []*unit.SourceUnit) {
+func assignGitCommits(dir string, units []*SourceUnit) {
 	_, err := exec.LookPath("git")
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
@@ -379,7 +380,7 @@ func assignGitCommits(dir string, units []*unit.SourceUnit) {
 	}
 }
 
-func assignGodepsCommits(dir string, units []*unit.SourceUnit) {
+func assignGodepsCommits(dir string, units []*SourceUnit) {
 	fullpath := filepath.Join(dir, "Godeps", "Godeps.json")
 	lookup := make(map[string]string)
 	deps, err := gog.LoadGodepsFile(fullpath)
@@ -395,6 +396,7 @@ func assignGodepsCommits(dir string, units []*unit.SourceUnit) {
 	}
 
 	for _, unit := range units {
+		unit.Paths = append(unit.Paths, fullpath)
 		name, isVendored := vendoredUnitName(unit.Data.(*build.Package))
 		if !isVendored {
 			name = unit.Name
@@ -405,7 +407,7 @@ func assignGodepsCommits(dir string, units []*unit.SourceUnit) {
 	}
 }
 
-func assignGovendorCommits(dir string, units []*unit.SourceUnit) {
+func assignGovendorCommits(dir string, units []*SourceUnit) {
 	fullpath := filepath.Join(dir, "vendor", "vendor.json")
 	lookup := make(map[string]string)
 	deps, err := gog.LoadGovendorFile(fullpath)
@@ -420,6 +422,7 @@ func assignGovendorCommits(dir string, units []*unit.SourceUnit) {
 	}
 
 	for _, unit := range units {
+		unit.Paths = append(unit.Paths, fullpath)
 		name, isVendored := vendoredUnitName(unit.Data.(*build.Package))
 		if !isVendored {
 			name = unit.Name
@@ -430,7 +433,7 @@ func assignGovendorCommits(dir string, units []*unit.SourceUnit) {
 	}
 }
 
-func assignRevisionsToDependencies(units []*unit.SourceUnit) {
+func assignRevisionsToDependencies(units []*SourceUnit) {
 	lookup := make(map[string]string)
 
 	for _, unit := range units {
