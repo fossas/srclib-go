@@ -381,7 +381,8 @@ func assignGitCommits(dir string, units []*SourceUnit) {
 }
 
 func assignGodepsCommits(dir string, units []*SourceUnit) {
-	fullpath := filepath.Join(dir, "Godeps", "Godeps.json")
+	relpath := filepath.Join("Godeps", "Godeps.json")
+	fullpath := filepath.Join(dir, relpath)
 	lookup := make(map[string]string)
 	deps, err := gog.LoadGodepsFile(fullpath)
 
@@ -396,7 +397,7 @@ func assignGodepsCommits(dir string, units []*SourceUnit) {
 	}
 
 	for _, unit := range units {
-		unit.Paths = append(unit.Paths, fullpath)
+		unit.Paths = append(unit.Paths, relpath)
 		name, isVendored := vendoredUnitName(unit.Data.(*build.Package))
 		if !isVendored {
 			name = unit.Name
@@ -408,7 +409,8 @@ func assignGodepsCommits(dir string, units []*SourceUnit) {
 }
 
 func assignGovendorCommits(dir string, units []*SourceUnit) {
-	fullpath := filepath.Join(dir, "vendor", "vendor.json")
+	relpath := filepath.Join("vendor", "vendor.json")
+	fullpath := filepath.Join(dir, relpath)
 	lookup := make(map[string]string)
 	deps, err := gog.LoadGovendorFile(fullpath)
 
@@ -422,7 +424,7 @@ func assignGovendorCommits(dir string, units []*SourceUnit) {
 	}
 
 	for _, unit := range units {
-		unit.Paths = append(unit.Paths, fullpath)
+		unit.Paths = append(unit.Paths, relpath)
 		name, isVendored := vendoredUnitName(unit.Data.(*build.Package))
 		if !isVendored {
 			name = unit.Name
