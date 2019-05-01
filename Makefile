@@ -28,7 +28,6 @@ default: govendor install
 install: ${SRCLIB_GO_EXE}
 
 govendor:
-	go get github.com/kardianos/govendor
 	govendor sync
 
 ${SRCLIB_GO_EXE}: $(shell /usr/bin/find . -type f -and -name '*.go' -not -path './vendor/*')
