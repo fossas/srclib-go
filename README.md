@@ -1,4 +1,5 @@
 # srclib-go [![Build Status](https://travis-ci.org/sourcegraph/srclib-go.svg?branch=master)](https://travis-ci.org/sourcegraph/srclib-go)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ffossas%2Fsrclib-go.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Ffossas%2Fsrclib-go?ref=badge_shield)
 
 **srclib-go** is a [srclib](https://srclib.org)
 toolchain that performs Go code analysis: type checking, documentation
@@ -112,3 +113,7 @@ Patches are welcomed via GitHub pull request! See
 
 srclib-go's type analysis is based on
 [go/types](https://godoc.org/golang.org/x/tools/go/types).
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ffossas%2Fsrclib-go.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Ffossas%2Fsrclib-go?ref=badge_large)
